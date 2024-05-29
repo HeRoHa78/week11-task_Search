@@ -1,11 +1,12 @@
-const express = require('express');
 const axios = require('axios');
-
+const express = require('express');
+const http = require('http');
 const app = express();
 
 app.set('view engine', 'ejs');
 app.use(express.static('public'));
 app.use(express.urlencoded({ extended: true }));
+app.use(express.json());
 
 app.get('/', (req, res)=>{
     let url = 'https://api.themoviedb.org/3/movie/1011985?api_key=fa74adda0bc3dfae6b00ee34cef0c88b';
@@ -88,7 +89,53 @@ app.post('/search', (req, res) => {
 
 });
 
+app.post('/getmovie', (req, res) => {
+	const movieToSearch =
+		req.body.queryResult && req.body.queryResult.parameters && req.body.queryResult.parameters.movie
+			? req.body.queryResult.parameters.movie
+			: '';
+
+	const reqUrl = encodeURI(
+		`http://www.omdbapi.com/?t=${movieToSearch}&apikey=9c329ee3`
+	);
+	http.get(
+		reqUrl,
+		responseFromAPI => {
+			let completeResponse = ''
+			responseFromAPI.on('data', chunk => {
+				completeResponse += chunk
+			})
+			responseFromAPI.on('end', () => {
+				const movie = JSON.parse(completeResponse);
+                if (!movie || !movie.Title) {
+                    return res.json({
+                        fulfillmentText: 'Sorry, we could not find the movie you are asking for.',
+                        source: 'getmovie'
+                    });
+                }
+
+				let dataToSend = movieToSearch;
+				dataToSend = `${movie.Title} was released in the year ${movie.Year}. It is directed by ${
+					movie.Director
+				} and stars ${movie.Actors}.\n Here some glimpse of the plot: ${movie.Plot}.`;
+
+				return res.json({
+					fulfillmentText: dataToSend,
+					source: 'getmovie'
+				});
+			})
+		},
+		error => {
+			return res.json({
+				fulfillmentText: 'Could not get results at this time',
+				source: 'getmovie'
+			});
+		}
+	)
+});
 
 app.listen(process.env.PORT || 3000, () => {
     console.log('server is running');
 });
+
+//week12
